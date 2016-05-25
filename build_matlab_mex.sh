@@ -1,3 +1,3 @@
 #!/bin/bash
 
-mex src/MyRiscvDecoder.cc src/MyDecoder.cc
+mex src/MyRiscvDecoder.cc src/riscv-*.cc

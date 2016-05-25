@@ -1,0 +1,6 @@
+*.o
+alphadecode*
+.sconsign.dblite
+*.obj
+*~
+*.mexa64

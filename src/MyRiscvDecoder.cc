@@ -1,10 +1,30 @@
-//#include "MyDecoder.hh"
-#include <iostream>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <cerrno>
+#include <vector>
+#include <map>
+#include <functional>
+#include <algorithm>
+#include <string>
 #include <sstream>
+#include <iostream>
 #include <iomanip>
+#include <chrono>
 #include <stdint.h>
 
+#include "riscv-types.h"
+#include "riscv-endian.h"
+#include "riscv-format.h"
+#include "riscv-meta.h"
+#include "riscv-elf.h"
+#include "riscv-elf-file.h"
+#include "riscv-elf-format.h"
+#include "riscv-imm.h"
+#include "riscv-decode.h"
+
 #include "mex.h"
+
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     /*if(nrhs != 1) {
             mexErrMsgIdAndTxt("MyToolbox:arrayProduct:nrhs",
@@ -42,13 +62,16 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     std::cout << "Interpreted as: 0x" << std::hex << std::setw(8) << raw << std::dec << std::endl;
     std::cout.fill(' ');
     
-    //RiscvISA::ExtMachInst inst = static_cast<RiscvISA::ExtMachInst>(raw);
+    struct riscv_decode dec;
+	memset(&dec, 0, sizeof(dec));
+    dec.inst = raw;
+	riscv_decode_opcode<false,true,true,true,true,true,true,true,false>(dec, dec.inst); //RV64G without compressed inst
+	riscv_decode_type(dec, dec.inst);
 
-    //RiscvISA::Decoder decoder;
     std::cout << "Disassembly: ";
-    //bool ret = decoder.decodeInst(inst);
+    std::cout << riscv_instruction_name[dec.op] << std::endl;
     std::cout << "Result: ";
-    if (ret) {
+    if (dec.op == riscv_op_unknown) {
         std::cout << "ILLEGAL" << std::endl;
     } else {
         std::cout << "valid" << std::endl;
@@ -58,7 +81,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     plhs[0] = mxCreateDoubleMatrix(1,1,mxREAL);
     plhs[1] = mxCreateString(outputStream.str().c_str());
     output = mxGetPr(plhs[0]);
-    if (ret)
+    if (dec.op == riscv_op_unknown) {
         *output = 1;
     else
         *output = 0;
