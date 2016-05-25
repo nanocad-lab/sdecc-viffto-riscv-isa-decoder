@@ -48,7 +48,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     //Get raw input
     char inputCharString[9];
-    mxGetString(prhs[0], inputCharString, 8);
+    mxGetString(prhs[0], inputCharString, 9);
     inputCharString[8] = '\0';
     std::string instString(inputCharString);
     std::cout << "Raw input: " << instString << std::endl;
@@ -81,7 +81,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     plhs[0] = mxCreateDoubleMatrix(1,1,mxREAL);
     plhs[1] = mxCreateString(outputStream.str().c_str());
     output = mxGetPr(plhs[0]);
-    if (dec.op == riscv_op_unknown) {
+    if (dec.op == riscv_op_unknown)
         *output = 1;
     else
         *output = 0;
