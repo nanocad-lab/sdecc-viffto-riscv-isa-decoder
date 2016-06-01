@@ -62,10 +62,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     std::cout << "Interpreted as: 0x" << std::hex << std::setw(8) << raw << std::dec << std::endl;
     std::cout.fill(' ');
     
-    struct riscv_decode dec;
+    struct riscv_disasm dec;
 	memset(&dec, 0, sizeof(dec));
     dec.inst = raw;
-	riscv_decode_opcode<false,true,true,true,true,true,true,true,false>(dec, dec.inst); //RV64G without compressed inst
+	riscv_decode_opcode<riscv_disasm,false,true,true,true,true,true,true,true,false>(dec, dec.inst); //RV64G without compressed inst
 	riscv_decode_type(dec, dec.inst);
 
     std::cout << "Disassembly: ";

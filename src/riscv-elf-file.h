@@ -39,8 +39,22 @@ struct elf_file
 
 	void clear();
 	void load(std::string filename);
+	void save(std::string filename);
+
+	void byteswap_symbol_table(ELFENDIAN endian);
+	void copy_from_symbol_table_sections();
+	void copy_to_symbol_table_sections();
+	void recalculate_section_offsets();
+
 	uint8_t* offset(size_t offset);
 	elf_section* section(size_t offset);
+
+	const char* shdr_name(int i);
+	const char* sym_name(int i);
+	const char* sym_name(const Elf64_Sym *sym);
+	const Elf64_Sym* sym_by_nearest_addr(Elf64_Addr addr);
+	const Elf64_Sym* sym_by_addr(Elf64_Addr addr);
+	const Elf64_Sym* sym_by_name(const char *name);
 };
 
 #endif

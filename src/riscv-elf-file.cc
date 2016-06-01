@@ -54,10 +54,8 @@ void elf_file::load(std::string filename)
 	// clear current data
 	clear();
 
-	// set filename
-	this->filename = filename;
-
 	// open file
+	this->filename = filename;
 	file = fopen(filename.c_str(), "r");
 	if (!file) {
 		panic("error fopen: %s: %s", filename.c_str(), strerror(errno));
@@ -69,7 +67,7 @@ void elf_file::load(std::string filename)
 		panic("error fstat: %s: %s", filename.c_str(), strerror(errno));
 	}
 
-	// read magic
+	// read file magic
 	if (stat_buf.st_size < EI_NIDENT) {
 		fclose(file);
 		panic("error invalid ELF file: %s", filename.c_str());
@@ -84,61 +82,87 @@ void elf_file::load(std::string filename)
 	ei_class = buf[EI_CLASS];
 	ei_data = buf[EI_DATA];
 
-	// read remaining data
-	buf.resize(filesize);
-	bytes_read = fread(buf.data() + EI_NIDENT, 1, filesize - EI_NIDENT, file);
-	if (bytes_read != (size_t)filesize - EI_NIDENT) {
+	// read, byteswap and normalize file header
+	switch (ei_class) {
+		case ELFCLASS32: buf.resize(sizeof(Elf32_Ehdr)); break;
+		case ELFCLASS64: buf.resize(sizeof(Elf64_Ehdr)); break;
+		default:
+			fclose(file);
+			panic("error invalid ELF class: %s", filename.c_str());
+	}
+	fseek(file, 0, SEEK_SET);
+	if (fread(buf.data(), 1, buf.size(), file) != buf.size()) {
 		fclose(file);
 		panic("error fread: %s", filename.c_str());
 	}
-	fclose(file);
-
-	// byteswap and normalize file header
 	switch (ei_class) {
 		case ELFCLASS32:
-			elf_bswap_ehdr32((Elf32_Ehdr*)buf.data(), ei_data);
-			elf_convert_to_ehdr64(&ehdr, (Elf32_Ehdr*)buf.data());
+			elf_bswap_ehdr32((Elf32_Ehdr*)buf.data(), ei_data, ELFENDIAN_HOST);
+			elf_ehdr32_to_ehdr64(&ehdr, (Elf32_Ehdr*)buf.data());
 			break;
 		case ELFCLASS64:
-			elf_bswap_ehdr64((Elf64_Ehdr*)buf.data(), ei_data);
+			elf_bswap_ehdr64((Elf64_Ehdr*)buf.data(), ei_data, ELFENDIAN_HOST);
 			memcpy(&ehdr, (Elf64_Ehdr*)buf.data(), sizeof(Elf64_Ehdr));
 			break;
-		default:
-			panic("error invalid ELF class: %s", filename.c_str());
 	}
 
 	// check header version
 	if (ehdr.e_version != EV_CURRENT) {
+		fclose(file);
 		panic("error invalid ELF version: %s", filename.c_str());
 	}
 
-	// byteswap and normalize program and section headers
+	// read, byteswap and normalize program and section headers
 	switch (ei_class) {
 		case ELFCLASS32:
+			buf.resize(sizeof(Elf32_Phdr));
 			for (int i = 0; i < ehdr.e_phnum; i++) {
-				Elf32_Phdr *phdr32 = (Elf32_Phdr*)(buf.data() + ehdr.e_phoff + i * sizeof(Elf32_Phdr));
+				fseek(file, ehdr.e_phoff + i * sizeof(Elf32_Phdr), SEEK_SET);
+				if (fread(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fread: %s", filename.c_str());
+				}
+				Elf32_Phdr *phdr32 = (Elf32_Phdr*)buf.data();
 				Elf64_Phdr phdr64;
-				elf_bswap_phdr32(phdr32, ei_data);
-				elf_convert_to_phdr64(&phdr64, phdr32);
+				elf_bswap_phdr32(phdr32, ei_data, ELFENDIAN_HOST);
+				elf_phdr32_to_phdr64(&phdr64, phdr32);
 				phdrs.push_back(phdr64);
 			}
+			buf.resize(sizeof(Elf32_Shdr));
 			for (int i = 0; i < ehdr.e_shnum; i++) {
-				Elf32_Shdr *shdr32 = (Elf32_Shdr*)(buf.data() + ehdr.e_shoff + i * sizeof(Elf32_Shdr));
+				fseek(file, ehdr.e_shoff + i * sizeof(Elf32_Shdr), SEEK_SET);
+				if (fread(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fread: %s", filename.c_str());
+				}
+				Elf32_Shdr *shdr32 = (Elf32_Shdr*)buf.data();
 				Elf64_Shdr shdr64;
-				elf_bswap_shdr32(shdr32, ei_data);
-				elf_convert_to_shdr64(&shdr64, shdr32);
+				elf_bswap_shdr32(shdr32, ei_data, ELFENDIAN_HOST);
+				elf_shdr32_to_shdr64(&shdr64, shdr32);
 				shdrs.push_back(shdr64);
 			}
 			break;
 		case ELFCLASS64:
+			buf.resize(sizeof(Elf64_Phdr));
 			for (int i = 0; i < ehdr.e_phnum; i++) {
-				Elf64_Phdr *phdr64 = (Elf64_Phdr*)(buf.data() + ehdr.e_phoff + i * sizeof(Elf64_Phdr));
-				elf_bswap_phdr64(phdr64, ei_data);
+				fseek(file, ehdr.e_phoff + i * sizeof(Elf64_Phdr), SEEK_SET);
+				if (fread(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fread: %s", filename.c_str());
+				}
+				Elf64_Phdr *phdr64 = (Elf64_Phdr*)buf.data();
+				elf_bswap_phdr64(phdr64, ei_data, ELFENDIAN_HOST);
 				phdrs.push_back(*phdr64);
 			}
+			buf.resize(sizeof(Elf64_Shdr));
 			for (int i = 0; i < ehdr.e_shnum; i++) {
-				Elf64_Shdr *shdr64 = (Elf64_Shdr*)(buf.data() + ehdr.e_shoff + i * sizeof(Elf64_Shdr));
-				elf_bswap_shdr64(shdr64, ei_data);
+				fseek(file, ehdr.e_shoff + i * sizeof(Elf64_Shdr), SEEK_SET);
+				if (fread(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fread: %s", filename.c_str());
+				}
+				Elf64_Shdr *shdr64 = (Elf64_Shdr*)buf.data();
+				elf_bswap_shdr64(shdr64, ei_data, ELFENDIAN_HOST);
 				shdrs.push_back(*shdr64);
 			}
 			break;
@@ -147,7 +171,7 @@ void elf_file::load(std::string filename)
 	// Find strtab and symtab
 	shstrtab = symtab = strtab = nullptr;
 	for (size_t i = 0; i < shdrs.size(); i++) {
-		if (shstrtab == nullptr && shdrs[i].sh_type == SHT_STRTAB) {
+		if (shstrtab == nullptr && shdrs[i].sh_type == SHT_STRTAB && ehdr.e_shstrndx == i) {
 			shstrtab = &shdrs[i];
 		} else if (symtab == nullptr && shdrs[i].sh_type == SHT_SYMTAB) {
 			symtab = &shdrs[i];
@@ -157,54 +181,203 @@ void elf_file::load(std::string filename)
 		}
 	}
 
-	// copy section data into buffers
+	// read section data into buffers
 	sections.resize(shdrs.size());
 	for (size_t i = 0; i < shdrs.size(); i++) {
 		sections[i].offset = shdrs[i].sh_offset;
 		sections[i].size = shdrs[i].sh_size;
-		if (shdrs[i].sh_type != SHT_NOBITS) {
-			sections[i].buf.resize(shdrs[i].sh_size);
-			std::memcpy(sections[i].buf.data(), buf.data() + shdrs[i].sh_offset, shdrs[i].sh_size);
+		if (shdrs[i].sh_type == SHT_NOBITS) continue;
+		fseek(file, shdrs[i].sh_offset, SEEK_SET);
+		sections[i].buf.resize(shdrs[i].sh_size);
+		if (fread(sections[i].buf.data(), 1, shdrs[i].sh_size, file) != shdrs[i].sh_size) {
+			fclose(file);
+			panic("error fread: %s", filename.c_str());
+		}
+	}
+	fclose(file);
+	buf.resize(0);
+
+	// byteswap symbol table
+	byteswap_symbol_table(ELFENDIAN_HOST);
+
+	// update symbol maps
+	copy_from_symbol_table_sections();
+}
+
+void elf_file::save(std::string filename)
+{
+	FILE *file;
+	std::vector<uint8_t> buf;
+
+	// open file
+	this->filename = filename;
+	file = fopen(filename.c_str(), "w");
+	if (!file) {
+		panic("error fopen: %s: %s", filename.c_str(), strerror(errno));
+	}
+
+	// update symbol table section based on changes to symbols
+	copy_to_symbol_table_sections();
+
+	// recompute section offsets based on changes to headers and sections
+	recalculate_section_offsets();
+
+	// byteswap, de-normalize and write file header
+	switch (ei_class) {
+		case ELFCLASS32:
+			buf.resize(sizeof(Elf32_Ehdr));
+			elf_ehdr64_to_ehdr32((Elf32_Ehdr*)buf.data(), &ehdr);
+			elf_bswap_ehdr32((Elf32_Ehdr*)buf.data(), ei_data, ELFENDIAN_TARGET);
+			break;
+		case ELFCLASS64:
+			buf.resize(sizeof(Elf64_Ehdr));
+			memcpy((Elf64_Ehdr*)buf.data(), &ehdr, sizeof(Elf64_Ehdr));
+			elf_bswap_ehdr64((Elf64_Ehdr*)buf.data(), ei_data, ELFENDIAN_TARGET);
+			break;
+		default:
+			fclose(file);
+			panic("error invalid ELF class: %s", filename.c_str());
+	}
+	if (fwrite(buf.data(), 1, buf.size(), file) != buf.size()) {
+		fclose(file);
+		panic("error fwrite: %s", filename.c_str());
+	}
+
+	// byteswap, de-normalize and write program and section headers
+	switch (ei_class) {
+		case ELFCLASS32:
+			buf.resize(sizeof(Elf32_Phdr));
+			for (size_t i = 0; i < phdrs.size(); i++) {
+				elf_phdr64_to_phdr32((Elf32_Phdr*)buf.data(), &phdrs[i]);
+				elf_bswap_phdr32((Elf32_Phdr*)buf.data(), ei_data, ELFENDIAN_TARGET);
+				fseek(file, ehdr.e_phoff + i * sizeof(Elf32_Phdr), SEEK_SET);
+				if (fwrite(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fwrite: %s", filename.c_str());
+				}
+			}
+			buf.resize(sizeof(Elf32_Shdr));
+			for (size_t i = 0; i < shdrs.size(); i++) {
+				elf_shdr64_to_shdr32((Elf32_Shdr*)buf.data(), &shdrs[i]);
+				elf_bswap_shdr32((Elf32_Shdr*)buf.data(), ei_data, ELFENDIAN_TARGET);
+				fseek(file, ehdr.e_shoff + i * sizeof(Elf32_Shdr), SEEK_SET);
+				if (fwrite(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fwrite: %s", filename.c_str());
+				}
+			}
+			break;
+		case ELFCLASS64:
+			buf.resize(sizeof(Elf64_Phdr));
+			for (size_t i = 0; i < phdrs.size(); i++) {
+				memcpy((Elf64_Phdr*)buf.data(), &phdrs[i], sizeof(Elf64_Phdr));
+				elf_bswap_phdr64((Elf64_Phdr*)buf.data(), ei_data, ELFENDIAN_TARGET);
+				fseek(file, ehdr.e_phoff + i * sizeof(Elf64_Phdr), SEEK_SET);
+				if (fwrite(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fwrite: %s", filename.c_str());
+				}
+			}
+			buf.resize(sizeof(Elf64_Shdr));
+			for (size_t i = 0; i < shdrs.size(); i++) {
+				memcpy((Elf64_Shdr*)buf.data(), &shdrs[i], sizeof(Elf64_Shdr));
+				elf_bswap_shdr64((Elf64_Shdr*)buf.data(), ei_data, ELFENDIAN_TARGET);
+				fseek(file, ehdr.e_shoff + i * sizeof(Elf64_Shdr), SEEK_SET);
+				if (fwrite(buf.data(), 1, buf.size(), file) != buf.size()) {
+					fclose(file);
+					panic("error fwrite: %s", filename.c_str());
+				}
+			}
+			break;
+	}
+
+	// byteswap symbol table
+	byteswap_symbol_table(ELFENDIAN_TARGET);
+
+	// write section buffers to file
+	for (size_t i = 0; i < sections.size(); i++) {
+		if (shdrs[i].sh_type == SHT_NOBITS) continue;
+		fseek(file, shdrs[i].sh_offset, SEEK_SET);
+		if (fwrite(sections[i].buf.data(), 1, shdrs[i].sh_size, file) != shdrs[i].sh_size) {
+			fclose(file);
+			panic("error fwrite: %s", filename.c_str());
 		}
 	}
 
+	// byteswap symbol table
+	byteswap_symbol_table(ELFENDIAN_HOST);
+
+	fclose(file);
+}
+
+void elf_file::byteswap_symbol_table(ELFENDIAN endian)
+{
 	if (!symtab) return;
 
-	// byteswap and normalize symbol table entries
 	size_t num_symbols = symtab->sh_size / symtab->sh_entsize;
 	switch (ei_class) {
 		case ELFCLASS32:
 			for (size_t i = 0; i < num_symbols; i++) {
-				Elf32_Sym *sym32 = (Elf32_Sym*)(buf.data() + symtab->sh_offset + i * sizeof(Elf32_Sym));
+				Elf32_Sym *sym32 = (Elf32_Sym*)offset(symtab->sh_offset + i * sizeof(Elf32_Sym));
+				elf_bswap_sym32(sym32, ei_data, ELFENDIAN_TARGET);
+			}
+			break;
+		case ELFCLASS64:
+			for (size_t i = 0; i < num_symbols; i++) {
+				Elf64_Sym *sym64 = (Elf64_Sym*)offset(symtab->sh_offset + i * sizeof(Elf64_Sym));
+				elf_bswap_sym64(sym64, ei_data, ELFENDIAN_TARGET);
+			}
+			break;
+	}
+}
+
+void elf_file::copy_from_symbol_table_sections()
+{
+	symbols.clear();
+	addr_symbol_map.clear();
+	name_symbol_map.clear();
+
+	if (!symtab) return;
+
+	size_t num_symbols = symtab->sh_size / symtab->sh_entsize;
+	switch (ei_class) {
+		case ELFCLASS32:
+			for (size_t i = 0; i < num_symbols; i++) {
+				Elf32_Sym *sym32 = (Elf32_Sym*)offset(symtab->sh_offset + i * sizeof(Elf32_Sym));
 				Elf64_Sym sym64;
-				elf_bswap_sym32(sym32, ei_data);
-				elf_convert_to_sym64(&sym64, sym32);
-				if (sym64.st_shndx != SHN_UNDEF) {
-					addr_symbol_map[sym64.st_value] = symbols.size();
-				}
+				elf_sym32_to_sym64(&sym64, sym32);
 				symbols.push_back(sym64);
 			}
 			break;
 		case ELFCLASS64:
 			for (size_t i = 0; i < num_symbols; i++) {
-				Elf64_Sym *sym64 = (Elf64_Sym*)(buf.data() + symtab->sh_offset + i * sizeof(Elf64_Sym));
-				elf_bswap_sym64(sym64, ei_data);
-				if (sym64->st_shndx != SHN_UNDEF) {
-					addr_symbol_map[sym64->st_value] = symbols.size();
-				}
+				Elf64_Sym *sym64 = (Elf64_Sym*)offset(symtab->sh_offset + i * sizeof(Elf64_Sym));
 				symbols.push_back(*sym64);
 			}
 			break;
 	}
 
-	// add symbol names to map
-	if (strtab) {
-		for (size_t i = 0; i < num_symbols; i++) {
-			Elf64_Sym &sym64 = symbols[i];
-			const char* name = (const char*)buf.data() + strtab->sh_offset + sym64.st_name;
+	if (!strtab) return;
+
+	for (size_t i = 0; i < symbols.size(); i++) {
+		auto &sym = symbols[i];
+		if (sym.st_shndx != SHN_UNDEF && sym.st_info != STT_FILE && sym.st_value != 0) {
+			const char* name = (const char*)offset(strtab->sh_offset + sym.st_name);
+			if (!strlen(name)) continue;
 			name_symbol_map[name] = i;
+			addr_symbol_map[sym.st_value] = i;
 		}
 	}
+}
+
+void elf_file::copy_to_symbol_table_sections()
+{
+	// TODO
+}
+
+void elf_file::recalculate_section_offsets()
+{
+	// TODO
 }
 
 uint8_t* elf_file::offset(size_t offset)
@@ -226,4 +399,45 @@ elf_section* elf_file::section(size_t offset)
 		}
 	}
 	return nullptr;
+}
+
+const char* elf_file::shdr_name(int i)
+{
+	return shstrtab ?
+		(const char*)offset(shstrtab->sh_offset + shdrs[i].sh_name) : "";
+}
+
+const char* elf_file::sym_name(int i)
+{
+	return strtab ?
+		(const char*)offset(strtab->sh_offset + symbols[i].st_name) : "";
+}
+
+const char* elf_file::sym_name(const Elf64_Sym *sym)
+{
+	return strtab ?
+		(const char*)offset(strtab->sh_offset + sym->st_name) : "";
+}
+
+const Elf64_Sym* elf_file::sym_by_nearest_addr(Elf64_Addr addr)
+{
+	auto ai = addr_symbol_map.lower_bound(addr);
+	if (ai == addr_symbol_map.end()) return nullptr;
+	if (ai->second == addr) return &symbols[ai->second];
+	if (ai != addr_symbol_map.begin()) ai--;
+	return &symbols[ai->second];
+}
+
+const Elf64_Sym* elf_file::sym_by_addr(Elf64_Addr addr)
+{
+	auto ai = addr_symbol_map.find(addr);
+	if (ai == addr_symbol_map.end()) return nullptr;
+	return &symbols[ai->second];
+}
+
+const Elf64_Sym* elf_file::sym_by_name(const char *name)
+{
+	size_t i = name_symbol_map[name];
+	if (i == 0 || i >= symbols.size()) return nullptr;
+	return &symbols[i];
 }
