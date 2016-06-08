@@ -48,26 +48,37 @@ int mwg_decode(std::string instString) {
     riscv_decode_type(dec, dec.inst);
 
     //Spit out legality first
+    bool legal_op = false;
     std::cout << "Legality: ";
     if (dec.op == riscv_op_unknown) {
         std::cout << "ILLEGAL" << std::endl;
         retval = 1;
+        legal_op = false;
     } else {
         std::cout << "valid" << std::endl;
         retval = 0;
+        legal_op = true;
     }
 
     //Operation mneumonic
     std::cout << "Mneumonic: ";
-    std::cout << riscv_instruction_name[dec.op] << std::endl;
+    if (legal_op)
+        std::cout << riscv_instruction_name[dec.op] << std::endl;
+    else
+        std::cout << "NA" << std::endl;
+
+    //Floating pt op?
     bool float_op = (riscv_instruction_name[dec.op][0] == 'f');
 
     //Codec
+    enum riscv_codec codec = riscv_instruction_codec[dec.op];
+    bool legal_codec = true;
     std::cout << "Codec: ";
-    switch (riscv_instruction_codec[dec.op]) {
-        case riscv_codec_unknown:       std::cout << "unknown" << std::endl;    break; 
-        /*case riscv_codec_none:          std::cout << "none" << std::endl;       break;
-        case riscv_codec_cb:            std::cout << "cb" << std::endl;         break;
+    switch (codec) {
+        default:                        std::cout << "FAILURE" << std::endl;    legal_codec = false;    break; 
+        case riscv_codec_unknown:       std::cout << "unknown" << std::endl;    legal_codec = false;    break; 
+        case riscv_codec_none:          std::cout << "none" << std::endl;       legal_codec = false;    break;
+        /*case riscv_codec_cb:            std::cout << "cb" << std::endl;         break;
         case riscv_codec_cb_sh5:        std::cout << "cb_sh5" << std::endl;     break;
         case riscv_codec_ci:            std::cout << "ci" << std::endl;         break;
         case riscv_codec_ci_sh5:        std::cout << "ci_sh5" << std::endl;     break;
@@ -103,12 +114,11 @@ int mwg_decode(std::string instString) {
         case riscv_codec_sb:            std::cout << "sb" << std::endl;         break;
         case riscv_codec_u:             std::cout << "u" << std::endl;          break;
         case riscv_codec_uj:            std::cout << "uj" << std::endl;         break;
-        default:                        std::cout << "unknown" << std::endl;    break; 
     }
 
     //rd
     std::cout << "rd: ";
-    if (riscv_instruction_codec[dec.op] == riscv_codec_sb || riscv_instruction_codec[dec.op] == riscv_codec_s) {
+    if (!legal_codec || codec == riscv_codec_sb || codec == riscv_codec_s) {
         std::cout << "NA" << std::endl;
     } else {
         if (!float_op)
@@ -119,7 +129,7 @@ int mwg_decode(std::string instString) {
     
     //rs1
     std::cout << "rs1: ";
-    if (riscv_instruction_codec[dec.op] == riscv_codec_u || riscv_instruction_codec[dec.op] == riscv_codec_uj) {
+    if (!legal_codec || codec == riscv_codec_u || codec == riscv_codec_uj) {
         std::cout << "NA" << std::endl;
     } else {
         if (!float_op)
@@ -130,7 +140,7 @@ int mwg_decode(std::string instString) {
     
     //rs2
     std::cout << "rs2: ";
-    if (riscv_instruction_codec[dec.op] == riscv_codec_u || riscv_instruction_codec[dec.op] == riscv_codec_uj || riscv_instruction_codec[dec.op] == riscv_codec_i) {
+    if (!legal_codec || codec == riscv_codec_u || codec == riscv_codec_uj || codec == riscv_codec_i) {
         std::cout << "NA" << std::endl;
     } else {
         if (!float_op)
@@ -141,7 +151,7 @@ int mwg_decode(std::string instString) {
     
     //rs3
     std::cout << "rs3: ";
-    if (riscv_instruction_codec[dec.op] == riscv_codec_r_4) {
+    if (codec == riscv_codec_r_4) {
         if (!float_op)
             std::cout << "NA" << std::endl;
         else
@@ -152,7 +162,7 @@ int mwg_decode(std::string instString) {
     
     //imm
     std::cout << "imm: ";
-    if (riscv_instruction_codec[dec.op] == riscv_codec_r) {
+    if (!legal_codec || codec == riscv_codec_r) {
         std::cout << "NA" << std::endl;
     } else {
         std::cout.fill('0');
@@ -161,7 +171,7 @@ int mwg_decode(std::string instString) {
     
     //arg
     std::cout << "arg: ";
-    if (riscv_instruction_codec[dec.op] == riscv_codec_r_m || riscv_instruction_codec[dec.op] == riscv_codec_r_l || riscv_instruction_codec[dec.op] == riscv_codec_r_a || riscv_instruction_codec[dec.op] == riscv_codec_r_m) {
+    if (codec == riscv_codec_r_m || codec == riscv_codec_r_l || codec == riscv_codec_r_a || codec == riscv_codec_r_m) {
         if (float_op) {
             std::cout.fill('0');
             std::cout << " 0x" << std::hex << std::setw(16) << dec.arg << std::endl;
