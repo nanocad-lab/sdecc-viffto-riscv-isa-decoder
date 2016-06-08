@@ -17,6 +17,7 @@ else:
     exit(1)
 sources = [
     Glob('src/riscv-*.cc'),
+    'src/mwg_decode.cc',
     'src/main.cc'
 ]
 
