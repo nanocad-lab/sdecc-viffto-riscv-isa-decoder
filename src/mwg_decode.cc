@@ -100,8 +100,7 @@ int mwg_decode(std::string instString) {
         case riscv_codec_cs_sw:         std::cout << "cs_sw" << std::endl;      break;
         case riscv_codec_cs_sd:         std::cout << "cs_sd" << std::endl;      break;
         case riscv_codec_css_swsp:      std::cout << "css_swsp" << std::endl;   break;
-        case riscv_codec_css_sdsp:      std::cout << "css_sdsp" << std::endl;   break;
-        */
+        case riscv_codec_css_sdsp:      std::cout << "css_sdsp" << std::endl;   break;*/
         case riscv_codec_i:             std::cout << "i" << std::endl;          break;
         case riscv_codec_i_sh5:         std::cout << "i_sh5" << std::endl;      break;
         case riscv_codec_i_sh6:         std::cout << "i_sh6" << std::endl;      break;
