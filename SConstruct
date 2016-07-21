@@ -23,5 +23,5 @@ sources = [
     'src/main.cc'
 ]
 
-defaultBuild = env.Program(target = 'riscvdecode', source = sources)
+defaultBuild = env.Program(target = 'rv64gdecode', source = sources)
 Default(defaultBuild)
