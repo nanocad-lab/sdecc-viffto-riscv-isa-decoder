@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# Author: Mark Gottscho
+# Email: mgottscho@ucla.edu
 
 #mex -v CXX="g++-5" CXXFLAGS="-std=c++14 -fPIC" LD_LIBRARY_PATH="/usr/local/MATLAB/R2015a/bin/glnxa64" src/MyRv64gDecoder.cc src/riscv-*.cc
 #mex -v CXX="g++-5" CXXFLAGS="-std=c++14 -O3 -Wall -fPIC" src/MyRv64gDecoder.cc src/riscv-*.cc src/mwg_decode.cc # For MWG-Desktop-UbuntuVM

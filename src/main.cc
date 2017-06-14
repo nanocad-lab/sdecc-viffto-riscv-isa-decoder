@@ -1,3 +1,8 @@
+/*
+ * Author: Mark Gottscho
+ * Email: mgottscho@ucla.edu
+ */
+
 #include <string>
 #include <iostream>
 

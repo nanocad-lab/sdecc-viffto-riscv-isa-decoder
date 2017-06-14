@@ -1,4 +1,7 @@
 #!/bin/python
+#
+# Author: Mark Gottscho
+# Email: mgottscho@ucla.edu
 
 import platform
 os_info = platform.platform()
